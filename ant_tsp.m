@@ -1,0 +1,74 @@
+m=5;%蚂蚁数量
+Q=100;%信息素常量
+t=50;%最大迭代次数
+info_factor=2;%信息素因子
+heu_factor=3;%启发数因子
+descend=0.1;%信息素挥发因子
+%定义一些超参数
+TSP_picture=[0,6,2,1,0,0;
+            6,0,6,0,3,0;
+            2,6,0,2,2,4;
+            1,0,2,0,0,5;
+            0,3,2,0,0,3;
+            0,0,4,5,3,0];
+%定义邻接矩阵0表示不邻接
+ TSP_info_concentration=ones(6,6)*Q;
+ %初始化信息素浓度
+iter=1;%迭代计数器
+while (iter<=t)
+   spare=m;
+   ant_route=zeros(m,7);
+   %每次迭代产生的路径，这里默认有m只蚂蚁
+   initializer=randi(6,m,1);
+   ant_route(:,1)=initializer;
+   %让所有蚂蚁随机落在不同的位置，并设为第一个route
+   j=1;%蚂蚁数计数器
+   length=[];%定义长度矩阵，初始化
+   while(j<=spare)
+       i=1;
+       refer=[0,0,0,0,0,0];%是否访问过该城市,1表示访问过，采用嵌入式表示
+       length(j,1)=0;
+       while(i<=5)%先计算前五个城市，因为第六个城市可能会和第一个城市重复
+           refer(1,ant_route(j,i))=1;
+           [s1,s2,s3]=obtain_canshu(TSP_picture,TSP_info_concentration,ant_route(j,i),refer);
+           %s1为邻接的路径权重,s2为邻接路径的信息素浓度，s3为邻接的城市
+           [p]=probability(s1,s2,info_factor,heu_factor);
+           %计算到达各个邻接城市的概率
+           p=accum_private(p);
+           %生成X<x的概率分布
+           if (numel(p)==0)
+               break;
+           end
+           luodian=rand(1,1);
+           num=1;
+           while(p(1,num)<luodian)
+               num=num+1;
+           end
+           %轮盘法，落点落在某个最小的概率分布内
+           ant_route(j,i+1)=s3(1,num);
+           length(j,1)=length(j,1)+s1(1,num);
+           i=i+1;
+       end
+       if TSP_picture(ant_route(j,i),ant_route(j,1))~=0 && i==6%计算最后一个城市如果能和第一个城市重复，那么这条路径可行
+           length(j,1)=length(j,1)+TSP_picture(ant_route(j,i),ant_route(j,1));
+           ant_route(j,i+1)=ant_route(j,1);
+           TSP_info_concentration=refresh_info_concentration(TSP_info_concentration,descend,ant_route(j,:),length(j,1),Q);
+           %更新信息素
+           j=j+1;
+       else%否则，将整行路径删除
+           ant_route(j,:)=[];
+           length(j,:)=[];
+           spare=spare-1;
+       end
+   end
+   [Min_L,U]=min(length,[],1);%计算最小路径及其行号
+   ant_route(U,:)%输出最短路劲
+   Min_L%输出最短路径长度
+   iter=iter+1;
+   %if mean(length)==Min_L
+       %iter
+       %break;
+   %end
+end
+%当迭代到最后，会发现ant_route中所有的路径都是同一个环
+       
